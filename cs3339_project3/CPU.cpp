@@ -28,8 +28,8 @@ CPU::CPU(uint32_t pc, Memory &iMem, Memory &dMem) : pc(pc), iMem(iMem), dMem(dMe
   }
   hi = 0;
   lo = 0;
-  regFile[28] = 0x10008000; // gp
-  regFile[29] = 0x10000000 + dMem.getSize(); // sp
+  regFile[28] = 0x10008000; // gp Global REGISTER
+  regFile[29] = 0x10000000 + dMem.getSize(); // sp stack pointer (Store the memory address of the last element added)
 
   instructions = 0;
   stop = false;
@@ -58,7 +58,7 @@ void CPU::run() {
     D(printRegFile());
   }
 }
-
+//prepare to fetch the next instruction
 void CPU::fetch() {
   instr = iMem.loadWord(pc);
   pc = pc + 4;
@@ -91,25 +91,35 @@ void CPU::decode() {
   storeData = 0;
 
 /*
- * The decode function parses the current instruction to identify its type and operational specifics,
- * setting up for execution. It handles a wide range of MIPS instructions, from arithmetic operations
- * like "addu", "subu", logical shifts "sll", "sra", to control flow changes with "j", "jal", "beq",
- * and "bne". Memory operations "lw" and "sw" are prepared here, with control signals set for later stages.
- * Special instructions like "mfhi", "mflo", "mult", and "div" are also managed, affecting hi/lo registers
- * or altering program flow directly in cases like "jr". Unhandled cases trigger an error message.
+ * The decode function interprets the current MIPS instruction, identifying its operation
+ * and type in order to prepare it for execution. It handles a variety of MIPS instructions,
+ * encompassing arithmetic operations like addition (addu) and subtraction (subu), logical
+ * shifts such as left shift (sll) and arithmetic right shift (sra), control flow instructions
+ * like jump (j), jump and link (jal), branch on equal (beq), and branch on not equal (bne),
+ * as well as memory operations like load word (lw) and store word (sw). Additionally, it manages
+ * special instructions like move from hi (mfhi), move from lo (mflo), multiply (mult), and divide (div),
+ * which may affect the contents of hi and lo registers or modify the program flow directly with
+ * instructions like jump register (jr). If an instruction is not supported, an error message is triggered.
  */
 
   D(cout << "  " << hex << setw(8) << pc - 4 << ": ");
   switch(opcode) {
     case 0x00:
       switch(funct) {
+        //The operation being performed here is a logical left shift (sll).
         case 0x00: D(cout << "sll " << regNames[rd] << ", " << regNames[rs] << ", " << dec << shamt);
+        // Indicates that the result of the operation should be written back to a destination register.
               writeDest = true;
+              // Specifies the destination register where the result will be stored.
               destReg = rd;
               stats.registerDest(rd);
+              //Sets the ALU operation to perform a logical left shift.
               aluOp = SHF_L;
+              // Specifies the first operand for the ALU operation as the value stored in the source register rs
               aluSrc1 = regFile[rs];
+              //Registers rs as one of the source registers for statistical tracking.
               stats.registerSrc(rs);
+              //Specifies the second operand for the ALU operation as the shift amount shamt.
               aluSrc2 = shamt;
              break; 
         case 0x03: D(cout << "sra " << regNames[rd] << ", " << regNames[rs] << ", " << dec << shamt);
